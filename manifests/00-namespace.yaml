@@ -1,0 +1,19 @@
+# =============================================================================
+# Laboratorio 015 — Kubernetes en GCP: Despliegue de aplicación frontend
+# Curso: GCP Fundamentos 2026 — FORMATIVA
+# Docente: Ing. Jesús A. Chávez Becerra
+# =============================================================================
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gcplab
+  labels:
+    app: gcp-labs
+    creator: jeschb
+    course: gcp-fundamentos-2026
+    env: lab
+  annotations:
+    description: "Namespace para Laboratorio 015 de Kubernetes — GCP Fundamentos"
+    created-by: "Ing. Jesús A. Chávez Becerra"
+    lab: "LAB-015"

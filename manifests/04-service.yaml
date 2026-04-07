@@ -1,0 +1,38 @@
+# =============================================================================
+# Laboratorio 015 — Kubernetes en GCP: Despliegue de aplicación frontend
+# Curso: GCP Fundamentos 2026 — FORMATIVA
+# Docente: Ing. Jesús A. Chávez Becerra
+# =============================================================================
+#
+# NodePort 30080: acceso externo desde el navegador
+#   http://<IP-del-nodo>:30080
+#
+# ClusterIP interno: usado para comunicación pod-a-pod dentro del clúster
+#   http://nave-aurora-svc.gcplab.svc.cluster.local:80
+# =============================================================================
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: nave-aurora-svc
+  namespace: gcplab
+  labels:
+    app: nave-aurora
+    creator: jeschb
+    course: gcp-fundamentos-2026
+    env: lab
+  annotations:
+    description: "Service NodePort para exponer Nave Aurora en el clúster local"
+    created-by: "Ing. Jesús A. Chávez Becerra"
+    lab: "LAB-015"
+spec:
+  type: NodePort
+  selector:
+    app: nave-aurora
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80            # Puerto del Service (ClusterIP interno)
+      targetPort: 8080    # Puerto del contenedor
+      nodePort: 30080     # Puerto externo en el nodo (rango: 30000-32767)
+  sessionAffinity: None

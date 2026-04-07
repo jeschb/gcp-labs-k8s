@@ -1,0 +1,151 @@
+# =============================================================================
+# Laboratorio 015 — Kubernetes en GCP: Despliegue de aplicación frontend
+# Curso: GCP Fundamentos 2026 — FORMATIVA
+# Docente: Ing. Jesús A. Chávez Becerra
+# =============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nave-aurora
+  namespace: gcplab
+  labels:
+    app: nave-aurora
+    creator: jeschb
+    course: gcp-fundamentos-2026
+    env: lab
+    version: v1.0
+  annotations:
+    description: "Deployment de la aplicación frontend Nave Aurora"
+    created-by: "Ing. Jesús A. Chávez Becerra"
+    lab: "LAB-015"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nave-aurora
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+
+  template:
+    metadata:
+      labels:
+        app: nave-aurora
+        creator: jeschb
+        course: gcp-fundamentos-2026
+        version: v1.0
+      annotations:
+        created-by: "Ing. Jesús A. Chávez Becerra"
+        lab: "LAB-015"
+    spec:
+      # ── Seguridad a nivel de Pod ──────────────────────────────────────────
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101        # usuario nginx en imagen nginx-unprivileged
+        runAsGroup: 101
+        fsGroup: 101
+
+      containers:
+        - name: nave-aurora
+          image: nginxinc/nginx-unprivileged:1.27-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+
+          # ── Variables de entorno desde ConfigMap ─────────────────────────
+          env:
+            - name: APP_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: nave-aurora-config
+                  key: APP_NAME
+            - name: APP_VERSION
+              valueFrom:
+                configMapKeyRef:
+                  name: nave-aurora-config
+                  key: APP_VERSION
+            - name: APP_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: nave-aurora-config
+                  key: APP_ENV
+            # ── Variables de entorno desde Secret ────────────────────────
+            - name: APP_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: nave-aurora-secret
+                  key: APP_SECRET_KEY
+            - name: API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: nave-aurora-secret
+                  key: API_TOKEN
+
+          # ── Volúmenes montados desde ConfigMap ───────────────────────────
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+              readOnly: true
+            - name: html-content
+              mountPath: /usr/share/nginx/html/index.html
+              subPath: index.html
+              readOnly: true
+
+          # ── Recursos ─────────────────────────────────────────────────────
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+
+          # ── Health checks ─────────────────────────────────────────────────
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            failureThreshold: 3
+            timeoutSeconds: 3
+
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+            timeoutSeconds: 3
+
+          # ── Seguridad a nivel de contenedor ──────────────────────────────
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: nave-aurora-config
+            items:
+              - key: nginx.conf
+                path: nginx.conf
+        - name: html-content
+          configMap:
+            name: nave-aurora-config
+            items:
+              - key: index.html
+                path: index.html
+
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30

@@ -1,0 +1,380 @@
+# =============================================================================
+# Laboratorio 015 — Kubernetes en GCP: Despliegue de aplicación frontend
+# Curso: GCP Fundamentos 2026 — FORMATIVA
+# Docente: Ing. Jesús A. Chávez Becerra
+# =============================================================================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nave-aurora-config
+  namespace: gcplab
+  labels:
+    app: nave-aurora
+    creator: jeschb
+    course: gcp-fundamentos-2026
+    env: lab
+  annotations:
+    description: "ConfigMap con configuración de la aplicación Nave Aurora"
+    created-by: "Ing. Jesús A. Chávez Becerra"
+    lab: "LAB-015"
+data:
+  APP_NAME: "Nave Aurora"
+  APP_VERSION: "v1.0"
+  APP_ENV: "kubernetes-lab"
+  APP_PORT: "8080"
+  COURSE: "GCP Fundamentos 2026"
+  INSTRUCTOR: "Ing. Jesús A. Chávez Becerra"
+
+  # Configuración de Nginx
+  nginx.conf: |
+    events {
+      worker_connections 1024;
+    }
+
+    http {
+      include       /etc/nginx/mime.types;
+      default_type  application/octet-stream;
+
+      log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent"';
+
+      access_log /dev/stdout main;
+      error_log  /dev/stderr warn;
+
+      sendfile on;
+      keepalive_timeout 65;
+      gzip on;
+      gzip_types text/plain text/css application/json application/javascript text/xml;
+
+      server {
+        listen 8080;
+        server_name _;
+        root /usr/share/nginx/html;
+        index index.html;
+
+        location / {
+          try_files $uri $uri/ /index.html;
+        }
+
+        location /health {
+          access_log off;
+          return 200 '{"status":"ok","app":"nave-aurora","version":"v1.0"}';
+          add_header Content-Type application/json;
+        }
+      }
+    }
+
+  # Página HTML de la aplicación frontend
+  index.html: |
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+      <title>Nave Aurora — GCP Fundamentos</title>
+      <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+          --space-dark:   #020816;
+          --space-navy:   #050d24;
+          --nebula-blue:  #0f2a5a;
+          --aurora-cyan:  #00d4ff;
+          --aurora-purple:#a855f7;
+          --aurora-pink:  #ec4899;
+          --star-white:   #e2e8f0;
+          --text-muted:   #94a3b8;
+          --card-bg:      rgba(15, 42, 90, 0.5);
+          --glass:        rgba(0, 212, 255, 0.08);
+        }
+
+        html, body {
+          height: 100%;
+          font-family: 'Segoe UI', system-ui, sans-serif;
+          background: var(--space-dark);
+          color: var(--star-white);
+          overflow-x: hidden;
+        }
+
+        /* ── Stars canvas ── */
+        #stars { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+
+        /* ── Layout ── */
+        .page { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; }
+
+        /* ── Header ── */
+        header {
+          display: flex; align-items: center; justify-content: space-between;
+          padding: 1.25rem 2.5rem;
+          background: rgba(2, 8, 22, 0.8);
+          backdrop-filter: blur(12px);
+          border-bottom: 1px solid rgba(0, 212, 255, 0.15);
+          position: sticky; top: 0; z-index: 10;
+        }
+        .logo { display: flex; align-items: center; gap: .75rem; }
+        .logo-icon {
+          width: 40px; height: 40px; border-radius: 10px;
+          background: linear-gradient(135deg, var(--aurora-cyan), var(--aurora-purple));
+          display: flex; align-items: center; justify-content: center; font-size: 1.3rem;
+        }
+        .logo-text { font-size: 1.2rem; font-weight: 700; letter-spacing: .05em; }
+        .logo-text span { color: var(--aurora-cyan); }
+        .badge {
+          padding: .25rem .75rem; border-radius: 9999px; font-size: .7rem; font-weight: 600;
+          background: rgba(0,212,255,.12); border: 1px solid rgba(0,212,255,.3);
+          color: var(--aurora-cyan); letter-spacing: .08em; text-transform: uppercase;
+        }
+
+        /* ── Hero ── */
+        .hero {
+          flex: 1; display: flex; flex-direction: column; align-items: center;
+          justify-content: center; text-align: center; padding: 5rem 1.5rem 3rem;
+        }
+        .mission-tag {
+          font-size: .7rem; letter-spacing: .2em; text-transform: uppercase;
+          color: var(--aurora-cyan); margin-bottom: 1.5rem;
+          display: flex; align-items: center; gap: .5rem;
+        }
+        .mission-tag::before, .mission-tag::after {
+          content: ''; flex: 1; height: 1px;
+          background: linear-gradient(90deg, transparent, var(--aurora-cyan), transparent);
+          width: 60px;
+        }
+        h1 {
+          font-size: clamp(2.5rem, 7vw, 5rem); font-weight: 900; line-height: 1.1;
+          background: linear-gradient(135deg, #fff 30%, var(--aurora-cyan) 60%, var(--aurora-purple));
+          -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+          background-clip: text; margin-bottom: 1.5rem;
+        }
+        .subtitle {
+          font-size: clamp(.95rem, 2vw, 1.2rem); color: var(--text-muted);
+          max-width: 520px; line-height: 1.7; margin-bottom: 2.5rem;
+        }
+        .cta-row { display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center; }
+        .btn {
+          padding: .75rem 1.75rem; border-radius: 9999px; font-weight: 600;
+          font-size: .9rem; cursor: pointer; border: none; transition: transform .2s, box-shadow .2s;
+          text-decoration: none; display: inline-block;
+        }
+        .btn:hover { transform: translateY(-2px); }
+        .btn-primary {
+          background: linear-gradient(135deg, var(--aurora-cyan), var(--aurora-purple));
+          color: #fff; box-shadow: 0 0 20px rgba(0,212,255,.35);
+        }
+        .btn-outline {
+          background: transparent; color: var(--aurora-cyan);
+          border: 1px solid rgba(0,212,255,.45);
+        }
+        .btn-outline:hover { background: rgba(0,212,255,.08); }
+
+        /* ── Stats ── */
+        .stats {
+          display: flex; gap: 2rem; justify-content: center; flex-wrap: wrap;
+          padding: 1.5rem; margin: 2rem auto;
+        }
+        .stat { text-align: center; }
+        .stat-value {
+          font-size: 2rem; font-weight: 800;
+          background: linear-gradient(135deg, var(--aurora-cyan), var(--aurora-purple));
+          -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+        }
+        .stat-label { font-size: .75rem; color: var(--text-muted); letter-spacing: .1em; text-transform: uppercase; }
+
+        /* ── Cards ── */
+        .cards {
+          display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+          gap: 1.5rem; max-width: 1100px; margin: 0 auto; padding: 0 1.5rem 4rem;
+        }
+        .card {
+          background: var(--card-bg); border: 1px solid rgba(0,212,255,.12);
+          border-radius: 16px; padding: 1.75rem; backdrop-filter: blur(8px);
+          transition: transform .25s, border-color .25s, box-shadow .25s;
+        }
+        .card:hover {
+          transform: translateY(-4px); border-color: rgba(0,212,255,.35);
+          box-shadow: 0 8px 32px rgba(0,212,255,.12);
+        }
+        .card-icon { font-size: 2rem; margin-bottom: 1rem; }
+        .card-title { font-size: 1rem; font-weight: 700; margin-bottom: .5rem; color: var(--aurora-cyan); }
+        .card-desc { font-size: .875rem; color: var(--text-muted); line-height: 1.6; }
+
+        /* ── K8s info panel ── */
+        .k8s-panel {
+          max-width: 800px; margin: 0 auto 4rem; padding: 0 1.5rem;
+        }
+        .panel-title {
+          font-size: .7rem; letter-spacing: .18em; text-transform: uppercase;
+          color: var(--aurora-purple); margin-bottom: 1rem; text-align: center;
+        }
+        .info-grid {
+          display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;
+        }
+        .info-item {
+          background: var(--glass); border: 1px solid rgba(168,85,247,.2);
+          border-radius: 10px; padding: 1rem 1.25rem;
+          display: flex; align-items: center; gap: .75rem;
+        }
+        .info-dot {
+          width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+          background: var(--aurora-cyan); box-shadow: 0 0 8px var(--aurora-cyan);
+          animation: pulse 2s infinite;
+        }
+        @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.4;} }
+        .info-label { font-size: .7rem; color: var(--text-muted); }
+        .info-value { font-size: .85rem; font-weight: 600; color: var(--star-white); }
+
+        /* ── Footer ── */
+        footer {
+          text-align: center; padding: 1.5rem;
+          border-top: 1px solid rgba(255,255,255,.06);
+          color: var(--text-muted); font-size: .78rem; line-height: 1.8;
+        }
+        footer strong { color: var(--aurora-cyan); }
+      </style>
+    </head>
+    <body>
+      <canvas id="stars"></canvas>
+      <div class="page">
+
+        <header>
+          <div class="logo">
+            <div class="logo-icon">🚀</div>
+            <div class="logo-text">Nave <span>Aurora</span></div>
+          </div>
+          <span class="badge">Kubernetes Lab</span>
+        </header>
+
+        <section class="hero">
+          <div class="mission-tag">Misión Activa · Laboratorio 015</div>
+          <h1>Desplegado en<br/>Kubernetes</h1>
+          <p class="subtitle">
+            Aplicación frontend servida desde un clúster Kubernetes local.
+            Namespace <code style="color:var(--aurora-cyan)">gcplab</code> · Deployment · Service · ConfigMap · Secret.
+          </p>
+          <div class="cta-row">
+            <a class="btn btn-primary" href="/health">Health Check</a>
+            <a class="btn btn-outline" href="#info">Ver Recursos K8s</a>
+          </div>
+
+          <div class="stats">
+            <div class="stat"><div class="stat-value">5</div><div class="stat-label">Manifiestos YAML</div></div>
+            <div class="stat"><div class="stat-value">2</div><div class="stat-label">Réplicas</div></div>
+            <div class="stat"><div class="stat-value">8080</div><div class="stat-label">Puerto</div></div>
+            <div class="stat"><div class="stat-value">30080</div><div class="stat-label">NodePort</div></div>
+          </div>
+        </section>
+
+        <div class="cards">
+          <div class="card">
+            <div class="card-icon">📦</div>
+            <div class="card-title">Namespace</div>
+            <div class="card-desc">Aislamiento lógico del laboratorio. Todos los recursos viven en el namespace <strong>gcplab</strong>.</div>
+          </div>
+          <div class="card">
+            <div class="card-icon">⚙️</div>
+            <div class="card-title">ConfigMap</div>
+            <div class="card-desc">Configuración externalizada: variables de entorno, nginx.conf e index.html inyectados como volúmenes.</div>
+          </div>
+          <div class="card">
+            <div class="card-icon">🔐</div>
+            <div class="card-title">Secret</div>
+            <div class="card-desc">Credenciales codificadas en Base64 y montadas de forma segura como variables de entorno en el pod.</div>
+          </div>
+          <div class="card">
+            <div class="card-icon">🔄</div>
+            <div class="card-title">Deployment</div>
+            <div class="card-desc">2 réplicas del contenedor nginx con rolling update, liveness probe y resource limits definidos.</div>
+          </div>
+          <div class="card">
+            <div class="card-icon">🌐</div>
+            <div class="card-title">Service</div>
+            <div class="card-desc">Exposición mediante NodePort 30080 para acceso externo desde el navegador en el clúster local.</div>
+          </div>
+          <div class="card">
+            <div class="card-icon">📚</div>
+            <div class="card-title">GCP Fundamentos</div>
+            <div class="card-desc">Laboratorio 015 del curso GCP Fundamentos 2026 — FORMATIVA. Docente: Ing. Jesús A. Chávez Becerra.</div>
+          </div>
+        </div>
+
+        <section id="info" class="k8s-panel">
+          <div class="panel-title">⬡ Información del despliegue</div>
+          <div class="info-grid">
+            <div class="info-item">
+              <div class="info-dot"></div>
+              <div><div class="info-label">Namespace</div><div class="info-value">gcplab</div></div>
+            </div>
+            <div class="info-item">
+              <div class="info-dot"></div>
+              <div><div class="info-label">Imagen</div><div class="info-value">nginx:1.27-alpine</div></div>
+            </div>
+            <div class="info-item">
+              <div class="info-dot"></div>
+              <div><div class="info-label">Réplicas</div><div class="info-value">2 pods</div></div>
+            </div>
+            <div class="info-item">
+              <div class="info-dot"></div>
+              <div><div class="info-label">Service Type</div><div class="info-value">NodePort</div></div>
+            </div>
+            <div class="info-item">
+              <div class="info-dot"></div>
+              <div><div class="info-label">Laboratorio</div><div class="info-value">LAB-015</div></div>
+            </div>
+            <div class="info-item">
+              <div class="info-dot"></div>
+              <div><div class="info-label">Curso</div><div class="info-value">GCP Fundamentos 2026</div></div>
+            </div>
+          </div>
+        </section>
+
+        <footer>
+          <strong>Nave Aurora</strong> · Laboratorio 015 — Kubernetes en GCP<br/>
+          Docente: <strong>Ing. Jesús A. Chávez Becerra</strong> · FORMATIVA · GCP Fundamentos 2026
+        </footer>
+      </div>
+
+      <script>
+        // ── Starfield animation ──
+        const canvas = document.getElementById('stars');
+        const ctx = canvas.getContext('2d');
+        let stars = [];
+
+        function resize() {
+          canvas.width  = window.innerWidth;
+          canvas.height = window.innerHeight;
+        }
+
+        function initStars(n = 220) {
+          stars = Array.from({ length: n }, () => ({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
+            r: Math.random() * 1.4 + 0.2,
+            alpha: Math.random(),
+            speed: Math.random() * 0.004 + 0.001,
+            drift: (Math.random() - 0.5) * 0.12,
+          }));
+        }
+
+        function draw() {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          stars.forEach(s => {
+            s.alpha += s.speed;
+            if (s.alpha > 1 || s.alpha < 0) s.speed *= -1;
+            s.x += s.drift;
+            if (s.x < 0) s.x = canvas.width;
+            if (s.x > canvas.width) s.x = 0;
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(226,232,240,${s.alpha})`;
+            ctx.fill();
+          });
+          requestAnimationFrame(draw);
+        }
+
+        resize(); initStars(); draw();
+        window.addEventListener('resize', () => { resize(); initStars(); });
+      </script>
+    </body>
+    </html>
